@@ -6,7 +6,8 @@ import spotipy
 import spotipy.util as util
 import requests
 import xmltodict
-import pprint
+import re
+import htmlentitydefs, re
 
 scope='playlist-read-private playlist-modify-private playlist-modify-public'
 username=<YOUR_SPOTIFY_USERNAME>
@@ -15,7 +16,7 @@ token=''
 
 def renew():
 	global token
-	token = util.prompt_for_user_token(username,scope,client_id='<SPOTIFY_CLIENT_ID>',client_secret='<SPOTIFY_APP_CLIENT_SECRET>',redirect_uri='<SPOTIFY_APP_CALLBACK>')
+	token = util.prompt_for_user_token(username,scope,client_id='<CLIENTID>',client_secret='<CLIENTSECRET>',redirect_uri='<CALLBACKURL>')
 	return
 
 previous= 'none'
@@ -28,20 +29,18 @@ if token:
 		page = requests.get(url)
 		doc = xmltodict.parse(page.content)
 		try:
-			song = doc['RadioInfo']['Table']['DB_DALET_TITLE_NAME']
-			artist = doc['RadioInfo']['Table']['DB_DALET_ARTIST_NAME']
+			vfmsong = str(doc['RadioInfo']['Table']['DB_DALET_TITLE_NAME'])
+			vfmartist = str(doc['RadioInfo']['Table']['DB_DALET_ARTIST_NAME'])
 		except KeyError:
-			song = "VodafoneFM"
-		if (song == 'VodafoneFM'):
-			# nothing is playing
+			vfmsong = "VodafoneFM"
+
+		if (vfmsong == 'VodafoneFM'):
 			pass
-		elif (song == previous):
-			# same song is playing
+		elif (vfmsong == previous):
 			pass
 		else:
-			previous=song
-			search_str = 'track:"'+song+'"+artist:"'+artist.replace("&",'" "')+'"'
-			# todo: improve search & replace for common search string bumps
+			previous=vfmsong
+			search_str = 'track:"'+vfmsong+'"+artist:"'+vfmartist.replace("&",'" "')+'"'
 			try:
 				result = sp.search(search_str,type='track',market='PT')
 			except spotipy.client.SpotifyException:
@@ -50,11 +49,13 @@ if token:
 				sp = spotipy.Spotify(auth=token)
 				result = sp.search(search_str,type='track',market='PT')
 			if (result['tracks']['items']):
-				sp.user_playlist_remove_all_occurrences_of_tracks(username,playlist,[result['tracks']['items'][0]['uri']])
-				sp.user_playlist_add_tracks(username,playlist,[result['tracks']['items'][0]['uri']])
-				print "Added: "+artist+" - "+song
+				try:
+					sp.user_playlist_remove_all_occurrences_of_tracks(username,playlist,[result['tracks']['items'][0]['uri']])
+					sp.user_playlist_add_tracks(username,playlist,[result['tracks']['items'][0]['uri']])
+				except:
+					print ("Exception caught on remove/add ["+vfmartist+"/"+vfmsong+"]")
 			else:
-				print "Song does not exist: "+artist+" - "+song
+				print "\nSong does not exist: "+vfmartist+" - "+vfmsong
 		time.sleep(interval)
 else:
 	print "Can't get token for ",username
